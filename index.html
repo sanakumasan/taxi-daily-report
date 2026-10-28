@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<title>乗車日報</title>
+<style>
+:root{--teal:#0f766e;--teal2:#115e59;--bg:#f3f7f7;--card:#fff;--text:#172525;--muted:#607171;--line:#dce7e6;--danger:#b42318}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;padding:0 0 env(safe-area-inset-bottom)}
+header{background:linear-gradient(135deg,var(--teal),var(--teal2));color:#fff;padding:22px 16px 18px}
+header h1{margin:0;font-size:24px}header p{margin:6px 0 0;font-size:13px;opacity:.9}
+main{max-width:720px;margin:0 auto;padding:14px}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.summary{background:#fff;border-radius:15px;padding:14px;border:1px solid var(--line);box-shadow:0 2px 8px #1737370a}
+.summary .label{font-size:12px;color:var(--muted)}.summary .value{font-size:21px;font-weight:750;margin-top:5px;overflow-wrap:anywhere}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 2px 8px #17373708}
+h2{font-size:17px;margin:0 0 14px}
+label{display:block;font-size:13px;font-weight:650;margin:12px 0 6px}
+input,textarea,button{font:inherit}
+input,textarea{width:100%;border:1px solid #cbd8d7;border-radius:10px;padding:12px;background:#fff;color:var(--text);min-height:44px}
+input:focus,textarea:focus{outline:2px solid #99d8d1;border-color:var(--teal)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.location-box{border:1px solid var(--line);background:#f9fbfb;border-radius:12px;padding:12px;margin-top:8px}
+.loc-title{font-weight:750;font-size:14px;display:flex;align-items:center;gap:6px}
+.loc-actions{display:flex;gap:8px;margin-top:10px}
+button{border:0;border-radius:10px;padding:11px 12px;min-height:42px;font-weight:700;cursor:pointer}
+.primary{background:var(--teal);color:#fff}.secondary{background:#e7f3f1;color:var(--teal2)}.danger{background:#fff0ef;color:var(--danger)}.small{font-size:12px;padding:8px 10px;min-height:36px}
+.loc-actions button{flex:1}
+.hint{font-size:12px;color:var(--muted);line-height:1.55;margin:8px 0 0}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.actions button{flex:1}
+.entry{border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:10px;background:#fff}
+.entry-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.entry-date{font-weight:750}.amount{font-weight:800;color:var(--teal2);white-space:nowrap}
+.route{font-size:13px;line-height:1.6;margin-top:8px;overflow-wrap:anywhere}
+.sub{color:var(--muted);font-size:12px}
+.entry-buttons{display:flex;gap:8px;margin-top:10px}.entry-buttons button{flex:1}
+#status{font-size:13px;line-height:1.5;margin-top:10px;color:var(--teal2);white-space:pre-wrap}
+.empty{color:var(--muted);font-size:13px;padding:8px 0}
+footer{text-align:center;color:var(--muted);font-size:11px;padding:8px 18px 24px}
+@media(max-width:390px){.row{grid-template-columns:1fr}.summary .value{font-size:18px}.card{padding:13px}}
+</style>
+</head>
+<body>
+<header><h1>🚕 乗車日報</h1><p>現在地・売上・ETCをかんたん記録</p></header>
+<main>
+  <section class="cards">
+    <div class="summary"><div class="label">本日の売上</div><div class="value" id="todaySales">¥0</div></div>
+    <div class="summary"><div class="label">本日のETC</div><div class="value" id="todayEtc">¥0</div></div>
+    <div class="summary"><div class="label">今月の売上</div><div class="value" id="monthSales">¥0</div></div>
+    <div class="summary"><div class="label">今月の乗車件数</div><div class="value" id="monthCount">0件</div></div>
+  </section>
+
+  <section class="card">
+    <h2 id="formTitle">乗車記録を追加</h2>
+    <label for="rideDate">乗車日</label><input id="rideDate" type="date">
+    <div class="location-box">
+      <div class="loc-title">📍 乗せた場所</div>
+      <label for="pickupAddress">住所（現在地から自動取得）</label>
+      <input id="pickupAddress" placeholder="現在地を取得すると住所が入ります">
+      <label for="pickupNote">店名・駅名など（補足）</label>
+      <input id="pickupNote" placeholder="例：新宿駅西口、〇〇ホテル">
+      <div class="loc-actions"><button class="secondary" type="button" onclick="getLocation('pickup')">📍 現在地を取得</button><button class="secondary" type="button" onclick="clearLocation('pickup')">クリア</button></div>
+      <div class="hint" id="pickupCoords"></div>
+    </div>
+    <div class="location-box">
+      <div class="loc-title">🏁 降ろした場所</div>
+      <label for="dropoffAddress">住所（現在地から自動取得）</label>
+      <input id="dropoffAddress" placeholder="現在地を取得すると住所が入ります">
+      <label for="dropoffNote">店名・駅名など（補足）</label>
+      <input id="dropoffNote" placeholder="例：六本木ヒルズ、〇〇病院">
+      <div class="loc-actions"><button class="secondary" type="button" onclick="getLocation('dropoff')">📍 現在地を取得</button><button class="secondary" type="button" onclick="clearLocation('dropoff')">クリア</button></div>
+      <div class="hint" id="dropoffCoords"></div>
+    </div>
+    <div class="row">
+      <div><label for="fare">売上金額（円）</label><input id="fare" type="number" min="0" step="1" inputmode="numeric" placeholder="例：3200"></div>
+      <div><label for="etc">ETC料金（円）</label><input id="etc" type="number" min="0" step="1" inputmode="numeric" placeholder="例：860" value="0"></div>
+    </div>
+    <label for="memo">メモ（任意）</label><textarea id="memo" rows="2" placeholder="補足事項"></textarea>
+    <div class="actions" style="margin-top:14px"><button class="primary" id="saveBtn" type="button" onclick="saveRide()">記録を保存</button><button class="secondary" type="button" onclick="resetForm()">入力をクリア</button></div>
+    <div id="status" role="status"></div>
+    <p class="hint">位置情報はボタンを押した時だけ取得します。GPSは建物の中や高層ビル付近では誤差が出る場合があります。店名・施設名は補足欄に入力してください。</p>
+  </section>
+
+  <section class="card">
+    <h2>記録一覧</h2>
+    <label for="filterMonth">表示する月</label><input id="filterMonth" type="month" onchange="render()">
+    <div class="actions" style="margin-top:10px">
+      <button class="secondary" type="button" onclick="exportCSV()">CSVを書き出す</button>
+      <button class="secondary" type="button" onclick="backupJSON()">バックアップ保存</button>
+    </div>
+    <label for="restoreFile">バックアップから復元</label><input id="restoreFile" type="file" accept=".json,application/json" onchange="restoreJSON(event)">
+    <div id="entries"></div>
+  </section>
+</main>
+<footer>記録はこのブラウザ内に保存されます。定期的にCSVまたはバックアップを保存してください。</footer>
+<script>
+const KEY='taxiRideLog_v1';
+let rides=[];
+let editingId=null;
+let coords={pickup:null,dropoff:null};
+const $=id=>document.getElementById(id);
+const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+const monthNow=()=>today().slice(0,7);
+const yen=n=>'¥'+(Number(n)||0).toLocaleString('ja-JP');
+function load(){try{rides=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(rides))rides=[]}catch(e){rides=[]}}
+function persist(){localStorage.setItem(KEY,JSON.stringify(rides))}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function locText(r,kind){const a=r[kind+'Address']||'';const n=r[kind+'Note']||'';return [a,n].filter(Boolean).join(' ／ ')||'未入力'}
+function setStatus(s){$('status').textContent=s}
+function clearLocation(kind){$(kind+'Address').value='';$(kind+'Note').value='';coords[kind]=null;$(kind+'Coords').textContent='';}
+async function getLocation(kind){
+  setStatus('現在地を取得しています…');
+  if(!('geolocation' in navigator)){setStatus('このブラウザでは位置情報を利用できません。住所を手入力してください。');return}
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    const lat=pos.coords.latitude, lon=pos.coords.longitude;
+    coords[kind]={lat,lon};
+    $(kind+'Coords').textContent=`座標：${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+    setStatus('位置情報を取得しました。住所を調べています…');
+    try{
+      const url=`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=18&addressdetails=1`;
+      const res=await fetch(url,{headers:{'Accept-Language':'ja'}});
+      if(!res.ok) throw new Error('住所検索に失敗しました');
+      const data=await res.json();
+      $(kind+'Address').value=data.display_name||`${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+      setStatus('現在地と住所を入力しました。必要に応じて住所を修正し、店名などを補足してください。');
+    }catch(e){
+      $(kind+'Address').value=`緯度 ${lat.toFixed(6)}, 経度 ${lon.toFixed(6)}`;
+      setStatus('現在地は取得できましたが、住所への変換ができませんでした。住所欄を手入力してください。');
+    }
+  },err=>{
+    const msgs={1:'位置情報の利用が許可されていません。iPhoneの設定とSafariのサイト設定を確認してください。',2:'現在地を取得できませんでした。電波の良い場所でもう一度お試しください。',3:'位置情報の取得がタイムアウトしました。もう一度お試しください。'};
+    setStatus(msgs[err.code]||'位置情報を取得できませんでした。住所を手入力してください。');
+  },{enableHighAccuracy:true,timeout:15000,maximumAge:0});
+}
+function resetForm(){
+  editingId=null;coords={pickup:null,dropoff:null};
+  ['pickupAddress','pickupNote','dropoffAddress','dropoffNote','fare','memo'].forEach(id=>$(id).value='');
+  $('etc').value='0';$('rideDate').value=today();$('formTitle').textContent='乗車記録を追加';$('saveBtn').textContent='記録を保存';
+  $('pickupCoords').textContent='';$('dropoffCoords').textContent='';setStatus('');
+}
+function saveRide(){
+  const date=$('rideDate').value||today();
+  const fare=Number($('fare').value||0), etc=Number($('etc').value||0);
+  if(fare<0||etc<0){setStatus('売上・ETCは0以上で入力してください。');return}
+  const old=editingId?rides.find(r=>r.id===editingId):null;
+  const ride={
+    id:editingId||String(Date.now())+Math.random().toString(16).slice(2,7),date,
+    pickupAddress:$('pickupAddress').value.trim(),pickupNote:$('pickupNote').value.trim(),
+    dropoffAddress:$('dropoffAddress').value.trim(),dropoffNote:$('dropoffNote').value.trim(),
+    pickupCoords:coords.pickup||(old&&old.pickupCoords)||null,dropoffCoords:coords.dropoff||(old&&old.dropoffCoords)||null,
+    fare,etc,memo:$('memo').value.trim(),updatedAt:new Date().toISOString()
+  };
+  if(editingId){rides=rides.map(r=>r.id===editingId?ride:r)}else{rides.push(ride)}
+  try{persist()}catch(e){setStatus('保存できませんでした。ブラウザの保存容量や設定を確認してください。');return}
+  render();resetForm();setStatus('保存しました！');
+}
+function editRide(id){
+  const r=rides.find(x=>x.id===id);if(!r)return;
+  editingId=id;coords={pickup:r.pickupCoords||null,dropoff:r.dropoffCoords||null};
+  $('rideDate').value=r.date;$('pickupAddress').value=r.pickupAddress||'';$('pickupNote').value=r.pickupNote||'';
+  $('dropoffAddress').value=r.dropoffAddress||'';$('dropoffNote').value=r.dropoffNote||'';
+  $('fare').value=r.fare;$('etc').value=r.etc;$('memo').value=r.memo||'';
+  $('pickupCoords').textContent=r.pickupCoords?`座標：${r.pickupCoords.lat.toFixed(6)}, ${r.pickupCoords.lon.toFixed(6)}`:'';
+  $('dropoffCoords').textContent=r.dropoffCoords?`座標：${r.dropoffCoords.lat.toFixed(6)}, ${r.dropoffCoords.lon.toFixed(6)}`:'';
+  $('formTitle').textContent='乗車記録を編集';$('saveBtn').textContent='変更を保存';setStatus('編集内容を保存してください。');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function deleteRide(id){if(!confirm('この乗車記録を削除しますか？'))return;rides=rides.filter(r=>r.id!==id);persist();render();if(editingId===id)resetForm()}
+function render(){
+  const m=$('filterMonth').value||monthNow();const visible=rides.filter(r=>r.date.startsWith(m)).sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id));
+  const t= rides.filter(r=>r.date===today()), mo=rides.filter(r=>r.date.startsWith(monthNow()));
+  $('todaySales').textContent=yen(t.reduce((s,r)=>s+Number(r.fare||0),0));
+  $('todayEtc').textContent=yen(t.reduce((s,r)=>s+Number(r.etc||0),0));
+  $('monthSales').textContent=yen(mo.reduce((s,r)=>s+Number(r.fare||0),0));
+  $('monthCount').textContent=mo.length+'件';
+  const box=$('entries');
+  if(!visible.length){box.innerHTML='<div class="empty">この月の記録はまだありません。</div>';return}
+  box.innerHTML=visible.map(r=>`<div class="entry">
+    <div class="entry-top"><div><div class="entry-date">${esc(r.date)}</div><div class="sub">${esc(r.memo||'メモなし')}</div></div><div class="amount">${yen(r.fare)}</div></div>
+    <div class="route"><div>📍 <b>乗車：</b>${esc(locText(r,'pickup'))}</div><div>🏁 <b>降車：</b>${esc(locText(r,'dropoff'))}</div><div>🛣️ ETC：${yen(r.etc)}</div></div>
+    <div class="entry-buttons"><button class="secondary small" onclick="editRide('${esc(r.id)}')">編集</button><button class="danger small" onclick="deleteRide('${esc(r.id)}')">削除</button></div>
+  </div>`).join('');
+}
+function download(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
+function csvCell(v){return '"'+String(v??'').replace(/"/g,'""')+'"'}
+function exportCSV(){
+  const m=$('filterMonth').value||monthNow();const rows=rides.filter(r=>r.date.startsWith(m)).sort((a,b)=>a.date.localeCompare(b.date));
+  if(!rows.length){alert('書き出す記録がありません。');return}
+  const head=['乗車日','乗車住所','乗車補足','乗車緯度','乗車経度','降車住所','降車補足','降車緯度','降車経度','売上円','ETC円','メモ'];
+  const lines=[head,...rows.map(r=>[r.date,r.pickupAddress,r.pickupNote,r.pickupCoords?.lat??'',r.pickupCoords?.lon??'',r.dropoffAddress,r.dropoffNote,r.dropoffCoords?.lat??'',r.dropoffCoords?.lon??'',r.fare,r.etc,r.memo])].map(row=>row.map(csvCell).join(','));
+  download(new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}),`乗車日報_${m}.csv`);
+}
+function backupJSON(){download(new Blob([JSON.stringify(rides,null,2)],{type:'application/json'}),`乗車日報バックアップ_${today()}.json`)}
+function restoreJSON(event){
+  const file=event.target.files[0];if(!file)return;const reader=new FileReader();
+  reader.onload=()=>{try{const data=JSON.parse(reader.result);if(!Array.isArray(data))throw new Error();if(!confirm(`${data.length}件のデータを読み込みます。現在の記録に追加しますか？\n※同じIDの記録は置き換わります。`))return;const map=new Map(rides.map(r=>[r.id,r]));data.forEach(r=>map.set(r.id||String(Date.now())+Math.random(),r));rides=[...map.values()];persist();render();alert('復元しました。')}catch(e){alert('ファイルを読み込めませんでした。乗車日報のJSONバックアップを選んでください。')}finally{$('restoreFile').value=''}};
+  reader.readAsText(file);
+}
+load();$('rideDate').value=today();$('filterMonth').value=monthNow();render();
+</script>
+</body>
+</html>
